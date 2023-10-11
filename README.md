@@ -1,72 +1,81 @@
-# StateMate
+# StateMate Go Library
 
-StateMate is a Go package that provides an efficient and concurrent-safe method for managing state in the form of key-value pairs. The package allows users to append data with an index and read data by index. It uses memory-mapped files for better performance.
+## Overview
+
+StateMate is a Go library designed for storing state as key-value pairs with efficient I/O operations and concurrency support.
 
 ## Features
 
-- Memory-mapped files for fast I/O
-- Concurrent-safe with built-in locking mechanism
-- Allow/disallow index gaps
-- Dynamically extend the underlying files as needed
+- Memory-mapped files for efficient I/O.
+- Thread-safe via read-write mutexes.
+- Generics support for custom unsigned integer key types.
+- Dynamic resizing of data and index files.
+- Optional index gap allowance.
 
 ## Requirements
 
-- Go version 1.18 or higher (due to the use of generics)
-
+- Go 1.18 or higher for generics support.
+  
 ## Installation
 
-To install StateMate, use `go get`:
+Install the package using:
 
-```bash
+```
 go get -u github.com/draganm/statemate
 ```
 
 ## Usage
 
-### Importing
+### Initialize a StateMate instance
 
 ```go
-import "github.com/draganm/statemate"
-```
-
-### Initialization
-
-```go
-options := statemate.Options{AllowGaps: false}
+options := statemate.Options{ AllowGaps: true }
 sm, err := statemate.Open[uint64]("datafile", options)
 if err != nil {
-    log.Fatal(err)
+    // Handle error
 }
-defer sm.Close()
 ```
 
-### Appending Data
+### Append Data
 
 ```go
-err = sm.Append(1, []byte("data"))
+err := sm.Append(1, []byte("some data"))
 if err != nil {
-    log.Fatal(err)
+    // Handle error
 }
 ```
 
-### Reading Data
+### Read Data
 
 ```go
-err = sm.Read(1, func(data []byte) error {
-    fmt.Println(string(data))
+err := sm.Read(1, func(data []byte) error {
+    // Process data
     return nil
 })
 if err != nil {
-    log.Fatal(err)
+    // Handle error
 }
 ```
 
-### Errors
+### Check if Empty
 
-- `ErrIndexMustBeIncreasing`: Raised when the new index is not greater than the last index.
-- `ErrIndexGapsAreNotAllowed`: Raised when gaps are detected and `AllowGaps` option is set to `false`.
-- `ErrNotFound`: Raised when trying to read an index that doesn't exist.
+```go
+isEmpty := sm.IsEmpty()
+```
+
+### Get Last Index
+
+```go
+lastIndex := sm.LastIndex()
+```
+
+## Errors
+
+- `ErrIndexMustBeIncreasing`: The provided index must be greater than the last index.
+- `ErrIndexGapsAreNotAllowed`: If `AllowGaps` is `false`, indexes must be consecutive.
+- `ErrNotFound`: The requested index was not found.
 
 ## License
 
-MIT
+MIT License
+
