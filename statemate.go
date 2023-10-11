@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"sort"
 	"sync"
@@ -246,5 +247,29 @@ func (sm *StateMate[T]) Read(index T, fn func(data []byte) error) error {
 	}
 
 	return fn(sm.readOnlyData[startPos:endPos])
+
+}
+
+func (sm *StateMate[T]) IsEmpty() bool {
+	sm.mu.RLock()
+	defer sm.mu.RUnlock()
+
+	count := binary.BigEndian.Uint64(sm.readOnlyIndex[:8])
+
+	return count == 0
+
+}
+
+func (sm *StateMate[T]) LastIndex() T {
+	sm.mu.RLock()
+	defer sm.mu.RUnlock()
+
+	count := binary.BigEndian.Uint64(sm.readOnlyIndex[:8])
+
+	if count == 0 {
+		return T(uint64(math.MaxUint64))
+	}
+
+	return T(binary.BigEndian.Uint64(sm.readOnlyIndex[8:][(count-1)*16:]))
 
 }
