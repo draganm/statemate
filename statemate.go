@@ -104,6 +104,8 @@ func calculateNewSize(currentSize uint64, spaceAvailable uint64, spaceNeeded uin
 	return (currentSize + spaceNeeded) * 11 / 10
 }
 
+var ErrIndexMustBeIncreasing = errors.New("index must be increasing")
+
 func (sm *StateMate[T]) Append(index T, data []byte) error {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
@@ -113,6 +115,11 @@ func (sm *StateMate[T]) Append(index T, data []byte) error {
 	endOfLastData := uint64(0)
 	if count > 0 {
 		endOfLastData = binary.BigEndian.Uint64(sm.readOnlyIndex[8:][(count-1)*16+8:])
+		lastIndex := binary.BigEndian.Uint64(sm.readOnlyIndex[8:][(count-1)*16:])
+		if T(lastIndex) >= index {
+			return ErrIndexMustBeIncreasing
+		}
+
 	}
 
 	available := len(sm.readOnlyData) - int(endOfLastData)

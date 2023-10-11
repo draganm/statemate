@@ -86,6 +86,16 @@ var _ = Describe("Statemate", func() {
 					})
 				})
 
+				Context("when I try to add another chunk of data with lower index", func() {
+					var err error
+					BeforeEach(func() {
+						err = sm.Append(1, []byte{4})
+					})
+					It("should return an error", func() {
+						Expect(err).To(HaveOccurred())
+					})
+				})
+
 				Context("when I add another chunk of data", func() {
 					var err error
 					BeforeEach(func() {
