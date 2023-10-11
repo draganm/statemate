@@ -35,7 +35,12 @@ var _ = Describe("Statemate", func() {
 		var sm *statemate.StateMate[uint64]
 		BeforeEach(func() {
 			sm, err = statemate.Open[uint64](filepath.Join(tempDir, "state"), statemate.Options{})
-
+			if err != nil {
+				DeferCleanup(func() {
+					err := sm.Close()
+					Expect(err).ToNot(HaveOccurred())
+				})
+			}
 		})
 
 		It("should not return an error", func() {
@@ -56,9 +61,24 @@ var _ = Describe("Statemate", func() {
 			var err error
 			sm, err = statemate.Open[uint64](filepath.Join(tempDir, "state"), statemate.Options{})
 			Expect(err).ToNot(HaveOccurred())
+			DeferCleanup(func() {
+				err := sm.Close()
+				Expect(err).ToNot(HaveOccurred())
+			})
 		})
 
 		Context("when statemate is empty", func() {
+			Context("when I try to access any index", func() {
+				var err error
+				BeforeEach(func() {
+					err = sm.Read(2, func(d []byte) error {
+						return nil
+					})
+				})
+				It("should return an error", func() {
+					Expect(err).To(Equal(statemate.ErrNotFound))
+				})
+			})
 			Context("when I Append() some data", func() {
 				var err error
 				BeforeEach(func() {
