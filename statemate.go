@@ -12,14 +12,21 @@ import (
 )
 
 type StateMate[T ~uint64] struct {
+	options Options
+
 	readOnlyData  mmap.MMap
 	data          *os.File
 	readOnlyIndex mmap.MMap
 	index         *os.File
-	mu            *sync.RWMutex
+
+	mu *sync.RWMutex
 }
 
-func Open[T ~uint64](dataFileName string) (*StateMate[T], error) {
+type Options struct {
+	AllowGaps bool
+}
+
+func Open[T ~uint64](dataFileName string, options Options) (*StateMate[T], error) {
 	dataFile, err := os.OpenFile(dataFileName, os.O_CREATE|os.O_RDWR, 0700)
 	if err != nil {
 		return nil, fmt.Errorf("could not open file: %w", err)
@@ -70,7 +77,7 @@ func Open[T ~uint64](dataFileName string) (*StateMate[T], error) {
 	}
 
 	return &StateMate[T]{
-		// TODO read this from index!
+		options:       options,
 		readOnlyData:  readOnlyData,
 		data:          dataFile,
 		readOnlyIndex: readOnlyIndex,
@@ -105,6 +112,7 @@ func calculateNewSize(currentSize uint64, spaceAvailable uint64, spaceNeeded uin
 }
 
 var ErrIndexMustBeIncreasing = errors.New("index must be increasing")
+var ErrIndexGapsAreNotAllowed = errors.New("index gaps are not allowed")
 
 func (sm *StateMate[T]) Append(index T, data []byte) error {
 	sm.mu.Lock()
@@ -120,12 +128,15 @@ func (sm *StateMate[T]) Append(index T, data []byte) error {
 			return ErrIndexMustBeIncreasing
 		}
 
+		if T(lastIndex)+1 != index && !sm.options.AllowGaps {
+			return ErrIndexGapsAreNotAllowed
+		}
+
 	}
 
 	available := len(sm.readOnlyData) - int(endOfLastData)
 
 	if available <= len(data) {
-		// TODO: extend the data file
 		newSize := calculateNewSize(endOfLastData, uint64(available), uint64(len(data)))
 		err := sm.data.Truncate(int64(newSize))
 		if err != nil {

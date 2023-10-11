@@ -34,7 +34,7 @@ var _ = Describe("Statemate", func() {
 		var err error
 		var sm *statemate.StateMate[uint64]
 		BeforeEach(func() {
-			sm, err = statemate.Open[uint64](filepath.Join(tempDir, "state"))
+			sm, err = statemate.Open[uint64](filepath.Join(tempDir, "state"), statemate.Options{})
 
 		})
 
@@ -54,7 +54,7 @@ var _ = Describe("Statemate", func() {
 		var sm *statemate.StateMate[uint64]
 		BeforeEach(func() {
 			var err error
-			sm, err = statemate.Open[uint64](filepath.Join(tempDir, "state"))
+			sm, err = statemate.Open[uint64](filepath.Join(tempDir, "state"), statemate.Options{})
 			Expect(err).ToNot(HaveOccurred())
 		})
 
@@ -92,7 +92,17 @@ var _ = Describe("Statemate", func() {
 						err = sm.Append(1, []byte{4})
 					})
 					It("should return an error", func() {
-						Expect(err).To(HaveOccurred())
+						Expect(err).To(Equal(statemate.ErrIndexMustBeIncreasing))
+					})
+				})
+
+				Context("when I try to add another chunk of data with an gap index", func() {
+					var err error
+					BeforeEach(func() {
+						err = sm.Append(3, []byte{4})
+					})
+					It("should return an error", func() {
+						Expect(err).To(Equal(statemate.ErrIndexGapsAreNotAllowed))
 					})
 				})
 
