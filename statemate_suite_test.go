@@ -86,6 +86,34 @@ var _ = Describe("Statemate", func() {
 					})
 				})
 
+				Context("when I add another chunk of data", func() {
+					var err error
+					BeforeEach(func() {
+						err = sm.Append(2, []byte{4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20})
+					})
+					It("should not return an error", func() {
+						Expect(err).ToNot(HaveOccurred())
+					})
+
+					Context("when I read the second data chunk", func() {
+						var err error
+						var data []byte
+						BeforeEach(func() {
+							err = sm.Read(2, func(d []byte) error {
+								data = make([]byte, len(d))
+								copy(data, d)
+								return nil
+							})
+						})
+						It("should not return an error", func() {
+							Expect(err).ToNot(HaveOccurred())
+						})
+						It("should read the written data", func() {
+							Expect(data).To(Equal([]byte{4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20}))
+						})
+					})
+				})
+
 			})
 		})
 	})

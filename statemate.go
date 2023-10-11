@@ -138,7 +138,6 @@ func (sm *StateMate[T]) Append(index T, data []byte) error {
 	}
 
 	sizeOfIndex := (count * 16) + 8
-	// newSizeOfIndex := sizeOfIndex + 8
 	availableForIndex := len(sm.readOnlyIndex) - int(sizeOfIndex)
 
 	if availableForIndex < 16 {
@@ -167,8 +166,6 @@ func (sm *StateMate[T]) Append(index T, data []byte) error {
 
 	copy(dataWriteMap[endOfLastData:], data)
 
-	// spew.Dump(dataWriteMap)
-
 	err = dataWriteMap.Unmap()
 	if err != nil {
 		return fmt.Errorf("could not unmap data RW map: %w", err)
@@ -185,8 +182,6 @@ func (sm *StateMate[T]) Append(index T, data []byte) error {
 	binary.BigEndian.PutUint64(indexWriteMap[sizeOfIndex+8:], endOfLastData)
 
 	binary.BigEndian.PutUint64(indexWriteMap, count+1)
-
-	// spew.Dump(indexWriteMap)
 
 	err = indexWriteMap.Unmap()
 	if err != nil {
@@ -227,9 +222,9 @@ func (sm *StateMate[T]) Read(index T, fn func(data []byte) error) error {
 	}
 
 	endPos := binary.BigEndian.Uint64(searchSlice[indexPos*16+8:])
-	startPos := 0
+	startPos := uint64(0)
 	if indexPos != 0 {
-		return errors.New("not yet implemented")
+		startPos = binary.BigEndian.Uint64(searchSlice[(indexPos-1)*16+8:])
 	}
 
 	return fn(sm.readOnlyData[startPos:endPos])
