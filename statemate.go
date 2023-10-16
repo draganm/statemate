@@ -273,3 +273,17 @@ func (sm *StateMate[T]) LastIndex() T {
 	return T(binary.BigEndian.Uint64(sm.readOnlyIndex[8:][(count-1)*16:]))
 
 }
+
+func (sm *StateMate[T]) FirstIndex() T {
+	sm.mu.RLock()
+	defer sm.mu.RUnlock()
+
+	count := binary.BigEndian.Uint64(sm.readOnlyIndex[:8])
+
+	if count == 0 {
+		return T(uint64(math.MaxUint64))
+	}
+
+	return T(binary.BigEndian.Uint64(sm.readOnlyIndex[8:]))
+
+}
