@@ -115,6 +115,36 @@ var _ = Describe("Statemate", func() {
 
 	})
 
+	Describe("FirstIndex", func() {
+		var sm *statemate.StateMate[uint64]
+		BeforeEach(func() {
+			var err error
+			sm, err = statemate.Open[uint64](filepath.Join(tempDir, "state"), statemate.Options{})
+			Expect(err).ToNot(HaveOccurred())
+			DeferCleanup(func() {
+				err := sm.Close()
+				Expect(err).ToNot(HaveOccurred())
+			})
+		})
+
+		Context("when statemate is empty", func() {
+			It("should return math.MaxUint64", func() {
+				Expect(sm.FirstIndex()).To(Equal(uint64(math.MaxUint64)))
+			})
+		})
+
+		Context("when there is one element added", func() {
+			BeforeEach(func() {
+				err := sm.Append(3, []byte{1})
+				Expect(err).ToNot(HaveOccurred())
+			})
+			It("should return the index of that element", func() {
+				Expect(sm.FirstIndex()).To(Equal(uint64(3)))
+			})
+		})
+
+	})
+
 	Describe("adding data", func() {
 
 		var sm *statemate.StateMate[uint64]
