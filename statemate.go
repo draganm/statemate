@@ -38,8 +38,8 @@ func Open[T ~uint64](dataFileName string, options Options) (*StateMate[T], error
 			return nil, fmt.Errorf("could not stat file: %w", err)
 		}
 
-		if fi.Size() < 8 {
-			err = dataFile.Truncate(8)
+		if fi.Size() < 1 {
+			err = dataFile.Truncate(1)
 			if err != nil {
 				return nil, fmt.Errorf("failed extending index file to 8 bytes: %w", err)
 			}
@@ -205,6 +205,67 @@ func (sm *StateMate[T]) Append(index T, data []byte) error {
 	err = indexWriteMap.Unmap()
 	if err != nil {
 		return fmt.Errorf("could not unmap index RW map: %w", err)
+	}
+
+	return nil
+}
+
+// Truncate removes all the padding at the end of the data and index files.
+// This method should be called before the state should be archived.
+func (sm *StateMate[T]) Truncate() error {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+
+	count := binary.BigEndian.Uint64(sm.readOnlyIndex[:8])
+
+	endOfLastData := uint64(0)
+	if count > 0 {
+		endOfLastData = binary.BigEndian.Uint64(sm.readOnlyIndex[8:][(count-1)*16+8:])
+	}
+
+	available := len(sm.readOnlyData) - int(endOfLastData)
+
+	if available > 0 {
+		if endOfLastData == 0 {
+			// reduce file to 1 byte instead of 0
+			// mmapping empty files in macOS leads to mmap: invalid argument
+			endOfLastData = 1
+		}
+		err := sm.data.Truncate(int64(endOfLastData))
+		if err != nil {
+			return fmt.Errorf("could not truncate data file to new size %d: %w", endOfLastData, err)
+		}
+		err = sm.readOnlyData.Unmap()
+		if err != nil {
+			return fmt.Errorf("could not unmap data mmap: %w", err)
+		}
+		readOnlyData, err := mmap.Map(sm.data, mmap.RDONLY, 0)
+		if err != nil {
+			return fmt.Errorf("could not create resized read only data mmap: %w", err)
+		}
+
+		sm.readOnlyData = readOnlyData
+	}
+
+	sizeOfIndex := (count * 16) + 8
+	availableForIndex := len(sm.readOnlyIndex) - int(sizeOfIndex)
+
+	if availableForIndex > 0 {
+		err := sm.index.Truncate(int64(sizeOfIndex))
+		if err != nil {
+			return fmt.Errorf("could not truncate index file to new size %d: %w", sizeOfIndex, err)
+		}
+		err = sm.readOnlyIndex.Unmap()
+		if err != nil {
+			return fmt.Errorf("could not unmap index mmap: %w", err)
+		}
+		readOnlyIndex, err := mmap.Map(sm.index, mmap.RDONLY, 0)
+		if err != nil {
+			return fmt.Errorf("could not create resized read only data mmap: %w", err)
+		}
+
+		sm.readOnlyIndex = readOnlyIndex
+
 	}
 
 	return nil

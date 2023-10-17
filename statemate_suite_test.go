@@ -175,6 +175,104 @@ var _ = Describe("Statemate", func() {
 
 	})
 
+	Describe("Truncate", func() {
+		var sm *statemate.StateMate[uint64]
+		BeforeEach(func() {
+			var err error
+			sm, err = statemate.Open[uint64](filepath.Join(tempDir, "state"), statemate.Options{})
+			Expect(err).ToNot(HaveOccurred())
+			DeferCleanup(func() {
+				err := sm.Close()
+				Expect(err).ToNot(HaveOccurred())
+			})
+		})
+
+		Context("when statemate is empty", func() {
+			Context("when I truncate", func() {
+				var err error
+				BeforeEach(func() {
+					err = sm.Truncate()
+				})
+
+				It("should not return an error", func() {
+					Expect(err).ToNot(HaveOccurred())
+				})
+
+				It("should have count 0", func() {
+					Expect(sm.Count()).To(Equal(uint64(0)))
+				})
+
+				Context("when I add one element", func() {
+					BeforeEach(func() {
+						err := sm.Append(3, []byte{1})
+						Expect(err).ToNot(HaveOccurred())
+					})
+					It("should have count 1", func() {
+						Expect(sm.Count()).To(Equal(uint64(1)))
+					})
+				})
+
+			})
+		})
+
+		Context("when there is one element", func() {
+			BeforeEach(func() {
+				err := sm.Append(3, []byte{1})
+				Expect(err).ToNot(HaveOccurred())
+			})
+			Context("when I truncate", func() {
+				var err error
+				BeforeEach(func() {
+					err = sm.Truncate()
+				})
+
+				It("should not return an error", func() {
+					Expect(err).ToNot(HaveOccurred())
+				})
+
+				It("should have count 0", func() {
+					Expect(sm.Count()).To(Equal(uint64(1)))
+				})
+
+				Context("when I add one element", func() {
+					BeforeEach(func() {
+						err := sm.Append(4, []byte{2})
+						Expect(err).ToNot(HaveOccurred())
+					})
+					It("should have count 2", func() {
+						Expect(sm.Count()).To(Equal(uint64(2)))
+					})
+					It("should contain data of the second element", func() {
+						var d []byte
+						err := sm.Read(4, func(data []byte) error {
+							d = make([]byte, len(data))
+							copy(d, data)
+							return nil
+						})
+
+						Expect(err).ToNot(HaveOccurred())
+						Expect(d).To(Equal([]byte{2}))
+					})
+					It("should contain data of the first element", func() {
+						var d []byte
+						err := sm.Read(3, func(data []byte) error {
+							d = make([]byte, len(data))
+							copy(d, data)
+							return nil
+						})
+
+						Expect(err).ToNot(HaveOccurred())
+						Expect(d).To(Equal([]byte{1}))
+					})
+
+				})
+
+			})
+
+		})
+
+	})
+
 	Describe("adding data", func() {
 
 		var sm *statemate.StateMate[uint64]
