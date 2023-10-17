@@ -260,7 +260,7 @@ func (sm *StateMate[T]) IsEmpty() bool {
 
 }
 
-func (sm *StateMate[T]) LastIndex() T {
+func (sm *StateMate[T]) GetLastIndex() T {
 	sm.mu.RLock()
 	defer sm.mu.RUnlock()
 
@@ -274,7 +274,7 @@ func (sm *StateMate[T]) LastIndex() T {
 
 }
 
-func (sm *StateMate[T]) FirstIndex() T {
+func (sm *StateMate[T]) GetFirstIndex() T {
 	sm.mu.RLock()
 	defer sm.mu.RUnlock()
 
@@ -285,5 +285,15 @@ func (sm *StateMate[T]) FirstIndex() T {
 	}
 
 	return T(binary.BigEndian.Uint64(sm.readOnlyIndex[8:]))
+
+}
+
+func (sm *StateMate[T]) Count() uint64 {
+	sm.mu.RLock()
+	defer sm.mu.RUnlock()
+
+	count := binary.BigEndian.Uint64(sm.readOnlyIndex[:8])
+
+	return count
 
 }
