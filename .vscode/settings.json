@@ -5,6 +5,8 @@
     "onsi",
     "RDONLY",
     "RDWR",
-    "statemate"
+    "samber",
+    "statemate",
+    "urfave"
   ]
 }
