@@ -25,6 +25,15 @@ type StateMate[T ~uint64] struct {
 
 type Options struct {
 	AllowGaps bool
+	MaxSize   uint64
+}
+
+func (o Options) GetMaxSize() uint64 {
+	if o.MaxSize == 0 {
+		return math.MaxUint64
+	}
+
+	return o.MaxSize
 }
 
 func Open[T ~uint64](dataFileName string, options Options) (*StateMate[T], error) {
@@ -43,6 +52,10 @@ func Open[T ~uint64](dataFileName string, options Options) (*StateMate[T], error
 			if err != nil {
 				return nil, fmt.Errorf("failed extending index file to 8 bytes: %w", err)
 			}
+		}
+
+		if uint64(fi.Size()) > options.GetMaxSize() {
+			return nil, fmt.Errorf("file size %d is larger than max size %d", fi.Size(), options.MaxSize)
 		}
 	}
 
@@ -101,15 +114,27 @@ func (sm *StateMate[T]) Close() error {
 
 const gByte = 1024 * 1024 * 1024
 
-func calculateNewSize(currentSize uint64, spaceAvailable uint64, spaceNeeded uint64) uint64 {
+var ErrNotEnoughSpace = errors.New("not enough space")
+
+func calculateNewSize(currentSize uint64, spaceAvailable uint64, spaceNeeded uint64, maxSize uint64) (uint64, error) {
+
+	newSize := uint64(0)
 	if currentSize+(spaceNeeded-spaceAvailable) < gByte {
-		return (currentSize + spaceNeeded) * 2
-	}
-	if currentSize+(spaceNeeded-spaceAvailable) < 100*gByte {
-		return (currentSize + spaceNeeded) * 15 / 10
+		newSize = (currentSize + spaceNeeded) * 15 / 10
+	} else {
+		newSizeInGB := (currentSize + spaceNeeded) / gByte
+		newSize = (newSizeInGB + 1) * gByte
 	}
 
-	return (currentSize + spaceNeeded) * 11 / 10
+	if newSize > maxSize {
+		newSize = maxSize
+	}
+
+	if currentSize+(spaceNeeded-spaceAvailable) > newSize {
+		return 0, ErrNotEnoughSpace
+	}
+
+	return newSize, nil
 }
 
 var ErrIndexMustBeIncreasing = errors.New("index must be increasing")
@@ -138,8 +163,12 @@ func (sm *StateMate[T]) Append(index T, data []byte) error {
 	available := len(sm.readOnlyData) - int(endOfLastData)
 
 	if available <= len(data) {
-		newSize := calculateNewSize(endOfLastData, uint64(available), uint64(len(data)))
-		err := sm.data.Truncate(int64(newSize))
+		newSize, err := calculateNewSize(endOfLastData, uint64(available), uint64(len(data)), sm.options.GetMaxSize())
+		if err != nil {
+			return err
+		}
+
+		err = sm.data.Truncate(int64(newSize))
 		if err != nil {
 			return fmt.Errorf("could not truncate data file to new size %d: %w", newSize, err)
 		}
@@ -160,8 +189,11 @@ func (sm *StateMate[T]) Append(index T, data []byte) error {
 	availableForIndex := len(sm.readOnlyIndex) - int(sizeOfIndex)
 
 	if availableForIndex < 16 {
-		newSize := calculateNewSize(sizeOfIndex, uint64(availableForIndex), 16)
-		err := sm.index.Truncate(int64(newSize))
+		newSize, err := calculateNewSize(sizeOfIndex, uint64(availableForIndex), 16, math.MaxUint64)
+		if err != nil {
+			return err
+		}
+		err = sm.index.Truncate(int64(newSize))
 		if err != nil {
 			return fmt.Errorf("could not truncate index file to new size %d: %w", newSize, err)
 		}
