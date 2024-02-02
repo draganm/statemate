@@ -130,7 +130,7 @@ func calculateNewSize(currentSize uint64, spaceAvailable uint64, spaceNeeded uin
 		newSize = maxSize
 	}
 
-	if currentSize+(spaceNeeded-spaceAvailable) > newSize {
+	if currentSize+(spaceNeeded) > newSize {
 		return 0, ErrNotEnoughSpace
 	}
 

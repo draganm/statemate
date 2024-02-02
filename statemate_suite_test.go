@@ -273,6 +273,65 @@ var _ = Describe("Statemate", func() {
 
 	})
 
+	Describe("MaxSize", func() {
+		When("I set MaxSize to 2k", func() {
+			var sm *statemate.StateMate[uint64]
+			BeforeEach(func() {
+				var err error
+				sm, err = statemate.Open[uint64](filepath.Join(tempDir, "state"), statemate.Options{
+					MaxSize: 2048,
+				})
+				Expect(err).ToNot(HaveOccurred())
+				DeferCleanup(func() {
+					err := sm.Close()
+					Expect(err).ToNot(HaveOccurred())
+				})
+			})
+
+			When("I add 1k of data", func() {
+				var err error
+				BeforeEach(func() {
+					err = sm.Append(1, make([]byte, 1024))
+				})
+				It("should not return an error", func() {
+					Expect(err).ToNot(HaveOccurred())
+				})
+
+				When("I add 1k and one byte of data", func() {
+					var err error
+					BeforeEach(func() {
+						err = sm.Append(2, make([]byte, 1025))
+					})
+					It("should return an error", func() {
+						Expect(err).To(MatchError(statemate.ErrNotEnoughSpace))
+					})
+				})
+
+				When("I add 1k of data", func() {
+					var err error
+					BeforeEach(func() {
+						err = sm.Append(2, make([]byte, 1024))
+					})
+					It("should not return an error", func() {
+						Expect(err).ToNot(HaveOccurred())
+					})
+				})
+
+				When("I add 1k minus one byte of data", func() {
+					var err error
+					BeforeEach(func() {
+						err = sm.Append(2, make([]byte, 1023))
+					})
+					It("should not return an error", func() {
+						Expect(err).ToNot(HaveOccurred())
+					})
+				})
+
+			})
+		})
+
+	})
+
 	Describe("adding data", func() {
 
 		var sm *statemate.StateMate[uint64]
