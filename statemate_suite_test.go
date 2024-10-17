@@ -273,6 +273,55 @@ var _ = Describe("Statemate", func() {
 
 	})
 
+	Describe("StorageStats", func() {
+		var sm *statemate.StateMate[uint64]
+		BeforeEach(func() {
+			var err error
+			sm, err = statemate.Open[uint64](filepath.Join(tempDir, "state"), statemate.Options{})
+			Expect(err).ToNot(HaveOccurred())
+			DeferCleanup(func() {
+				err := sm.Close()
+				Expect(err).ToNot(HaveOccurred())
+			})
+		})
+		When("statemate is empty", func() {
+			It("should return 0 for all fields", func() {
+				stats := sm.StorageStats()
+				Expect(stats.DataSize).To(Equal(uint64(0)))
+				Expect(stats.IndexSize).To(Equal(uint64(8)))
+				Expect(stats.DataFileSize).To(Equal(uint64(1)))
+				Expect(stats.IndexFileSize).To(Equal(uint64(8)))
+			})
+		})
+		When("statemate has one element", func() {
+			BeforeEach(func() {
+				err := sm.Append(3, []byte{1})
+				Expect(err).ToNot(HaveOccurred())
+			})
+			It("should return the size of the data", func() {
+				stats := sm.StorageStats()
+				Expect(stats.DataSize).To(Equal(uint64(1)))
+				Expect(stats.IndexSize).To(Equal(uint64(24)))
+				Expect(stats.DataFileSize).To(Equal(uint64(1)))
+				Expect(stats.IndexFileSize).To(Equal(uint64(36)))
+			})
+
+			When("I add another element", func() {
+				BeforeEach(func() {
+					err := sm.Append(4, []byte{2})
+					Expect(err).ToNot(HaveOccurred())
+				})
+				It("should return the size of the data", func() {
+					stats := sm.StorageStats()
+					Expect(stats.DataSize).To(Equal(uint64(2)))
+					Expect(stats.IndexSize).To(Equal(uint64(40)))
+					Expect(stats.DataFileSize).To(Equal(uint64(3)))
+					Expect(stats.IndexFileSize).To(Equal(uint64(60)))
+				})
+			})
+		})
+	})
+
 	Describe("MaxSize", func() {
 		When("I set MaxSize to 2k", func() {
 			var sm *statemate.StateMate[uint64]

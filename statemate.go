@@ -242,6 +242,39 @@ func (sm *StateMate[T]) Append(index T, data []byte) error {
 	return nil
 }
 
+type StorageStats struct {
+	DataSize      uint64
+	IndexSize     uint64
+	DataFileSize  uint64
+	IndexFileSize uint64
+}
+
+// StorageStats returns the size of the data and index files.
+// This method is useful for debugging and monitoring.
+// The size of the data file is the number of bytes from the beginning of the first to the end of last data entry.
+// The physical size of the data file may be larger than the data size due to pre-allocation.
+// The size of the index file is the number of bytes from the beginning of the file to the end of the last index entry.
+// The physical size of the index file may be larger than the index size due to pre-allocation.
+func (sm *StateMate[T]) StorageStats() StorageStats {
+	sm.mu.RLock()
+	defer sm.mu.RUnlock()
+
+	count := binary.BigEndian.Uint64(sm.readOnlyIndex[:8])
+
+	endOfLastData := uint64(0)
+	if count > 0 {
+		endOfLastData = binary.BigEndian.Uint64(sm.readOnlyIndex[8:][(count-1)*16+8:])
+	}
+
+	return StorageStats{
+		DataSize:      endOfLastData,
+		IndexSize:     (count * 16) + 8,
+		DataFileSize:  uint64(len(sm.readOnlyData)),
+		IndexFileSize: uint64(len(sm.readOnlyIndex)),
+	}
+
+}
+
 // Truncate removes all the padding at the end of the data and index files.
 // This method should be called before the state should be archived.
 func (sm *StateMate[T]) Truncate() error {
