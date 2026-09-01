@@ -275,24 +275,61 @@ var _ = Describe("Statemate", func() {
 
 	Describe("StorageStats", func() {
 		var sm *statemate.StateMate[uint64]
+		var dataFileName string
+
+		// reopen closes the current instance and opens a fresh one on the
+		// same files, so that the stats are read back from disk.
+		reopen := func() {
+			err := sm.Close()
+			Expect(err).ToNot(HaveOccurred())
+			sm, err = statemate.Open[uint64](dataFileName, statemate.Options{})
+			Expect(err).ToNot(HaveOccurred())
+		}
+
+		// expectFileSizesToMatchDisk checks the physical sizes against the
+		// actual files on disk instead of against the pre-allocation policy.
+		expectFileSizesToMatchDisk := func(stats statemate.StorageStats) {
+			GinkgoHelper()
+			dataFileInfo, err := os.Stat(dataFileName)
+			Expect(err).ToNot(HaveOccurred())
+			indexFileInfo, err := os.Stat(dataFileName + ".idx")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(stats.DataFileSize).To(Equal(uint64(dataFileInfo.Size())))
+			Expect(stats.IndexFileSize).To(Equal(uint64(indexFileInfo.Size())))
+			Expect(stats.DataFileSize).To(BeNumerically(">=", stats.DataSize))
+			Expect(stats.IndexFileSize).To(BeNumerically(">=", stats.IndexSize))
+		}
+
 		BeforeEach(func() {
 			var err error
-			sm, err = statemate.Open[uint64](filepath.Join(tempDir, "state"), statemate.Options{})
+			dataFileName = filepath.Join(tempDir, "state")
+			sm, err = statemate.Open[uint64](dataFileName, statemate.Options{})
 			Expect(err).ToNot(HaveOccurred())
 			DeferCleanup(func() {
 				err := sm.Close()
 				Expect(err).ToNot(HaveOccurred())
 			})
 		})
+
 		When("statemate is empty", func() {
-			It("should return 0 for all fields", func() {
+			It("should report no data and only the index header", func() {
 				stats := sm.StorageStats()
 				Expect(stats.DataSize).To(Equal(uint64(0)))
 				Expect(stats.IndexSize).To(Equal(uint64(8)))
-				Expect(stats.DataFileSize).To(Equal(uint64(1)))
-				Expect(stats.IndexFileSize).To(Equal(uint64(8)))
+				expectFileSizesToMatchDisk(stats)
+			})
+
+			When("I close and reopen", func() {
+				BeforeEach(reopen)
+				It("should still report no data and only the index header", func() {
+					stats := sm.StorageStats()
+					Expect(stats.DataSize).To(Equal(uint64(0)))
+					Expect(stats.IndexSize).To(Equal(uint64(8)))
+					expectFileSizesToMatchDisk(stats)
+				})
 			})
 		})
+
 		When("statemate has one element", func() {
 			BeforeEach(func() {
 				err := sm.Append(3, []byte{1})
@@ -302,8 +339,7 @@ var _ = Describe("Statemate", func() {
 				stats := sm.StorageStats()
 				Expect(stats.DataSize).To(Equal(uint64(1)))
 				Expect(stats.IndexSize).To(Equal(uint64(24)))
-				Expect(stats.DataFileSize).To(Equal(uint64(1)))
-				Expect(stats.IndexFileSize).To(Equal(uint64(36)))
+				expectFileSizesToMatchDisk(stats)
 			})
 
 			When("I add another element", func() {
@@ -315,8 +351,47 @@ var _ = Describe("Statemate", func() {
 					stats := sm.StorageStats()
 					Expect(stats.DataSize).To(Equal(uint64(2)))
 					Expect(stats.IndexSize).To(Equal(uint64(40)))
-					Expect(stats.DataFileSize).To(Equal(uint64(3)))
-					Expect(stats.IndexFileSize).To(Equal(uint64(60)))
+					expectFileSizesToMatchDisk(stats)
+				})
+
+				When("I close and reopen", func() {
+					var statsBeforeClose statemate.StorageStats
+					BeforeEach(func() {
+						statsBeforeClose = sm.StorageStats()
+						reopen()
+					})
+					It("should report the same stats as before closing", func() {
+						stats := sm.StorageStats()
+						Expect(stats).To(Equal(statsBeforeClose))
+						expectFileSizesToMatchDisk(stats)
+					})
+				})
+
+				When("I truncate", func() {
+					BeforeEach(func() {
+						err := sm.Truncate()
+						Expect(err).ToNot(HaveOccurred())
+					})
+					It("should report file sizes equal to the logical sizes", func() {
+						stats := sm.StorageStats()
+						Expect(stats.DataSize).To(Equal(uint64(2)))
+						Expect(stats.IndexSize).To(Equal(uint64(40)))
+						Expect(stats.DataFileSize).To(Equal(stats.DataSize))
+						Expect(stats.IndexFileSize).To(Equal(stats.IndexSize))
+						expectFileSizesToMatchDisk(stats)
+					})
+
+					When("I close and reopen", func() {
+						BeforeEach(reopen)
+						It("should still report file sizes equal to the logical sizes", func() {
+							stats := sm.StorageStats()
+							Expect(stats.DataSize).To(Equal(uint64(2)))
+							Expect(stats.IndexSize).To(Equal(uint64(40)))
+							Expect(stats.DataFileSize).To(Equal(stats.DataSize))
+							Expect(stats.IndexFileSize).To(Equal(stats.IndexSize))
+							expectFileSizesToMatchDisk(stats)
+						})
+					})
 				})
 			})
 		})
