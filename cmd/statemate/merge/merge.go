@@ -39,9 +39,9 @@ func Command() *cli.Command {
 			stateFilesWithError := lo.Map(cfg.stateFiles.Value(), func(stateFile string, _ int) lo.Tuple2[*statemate.StateMate[uint64], error] {
 				sm, err := statemate.Open[uint64](stateFile, statemate.Options{})
 				if err != nil {
-					return lo.Tuple2[*statemate.StateMate[uint64], error]{nil, fmt.Errorf("could not open state file: %w", err)}
+					return lo.Tuple2[*statemate.StateMate[uint64], error]{A: nil, B: fmt.Errorf("could not open state file: %w", err)}
 				}
-				return lo.Tuple2[*statemate.StateMate[uint64], error]{sm, nil}
+				return lo.Tuple2[*statemate.StateMate[uint64], error]{A: sm, B: nil}
 			})
 
 			err := lo.Reduce(stateFilesWithError, func(err error, sf lo.Tuple2[*statemate.StateMate[uint64], error], _ int) error {
@@ -70,7 +70,7 @@ func Command() *cli.Command {
 			})
 
 			ranges := lo.Map(stateFiles, func(sf *statemate.StateMate[uint64], _ int) lo.Tuple2[uint64, uint64] {
-				return lo.Tuple2[uint64, uint64]{sf.GetFirstIndex(), sf.GetLastIndex()}
+				return lo.Tuple2[uint64, uint64]{A: sf.GetFirstIndex(), B: sf.GetLastIndex()}
 			})
 
 			for i := range stateFiles[1:] {
