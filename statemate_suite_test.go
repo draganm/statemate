@@ -175,6 +175,83 @@ var _ = Describe("Statemate", func() {
 
 	})
 
+	Describe("GetSizes", func() {
+		var sm *statemate.StateMate[uint64]
+		BeforeEach(func() {
+			var err error
+			sm, err = statemate.Open[uint64](filepath.Join(tempDir, "state"), statemate.Options{AllowGaps: true})
+			Expect(err).ToNot(HaveOccurred())
+			DeferCleanup(func() {
+				err := sm.Close()
+				Expect(err).ToNot(HaveOccurred())
+			})
+		})
+
+		When("statemate is empty", func() {
+			It("should return no indexes and no sizes", func() {
+				indexes, sizes := sm.GetSizes(0, 10)
+				Expect(indexes).To(BeEmpty())
+				Expect(sizes).To(BeEmpty())
+			})
+		})
+
+		When("statemate has entries 3, 4 and 7 with sizes 1, 3 and 2", func() {
+			BeforeEach(func() {
+				Expect(sm.Append(3, []byte{1})).To(Succeed())
+				Expect(sm.Append(4, []byte{2, 3, 4})).To(Succeed())
+				Expect(sm.Append(7, []byte{5, 6})).To(Succeed())
+			})
+
+			It("should return all entries when starting at the first index", func() {
+				indexes, sizes := sm.GetSizes(3, 10)
+				Expect(indexes).To(Equal([]uint64{3, 4, 7}))
+				Expect(sizes).To(Equal([]uint64{1, 3, 2}))
+			})
+
+			It("should return at most maxResults entries", func() {
+				indexes, sizes := sm.GetSizes(3, 2)
+				Expect(indexes).To(Equal([]uint64{3, 4}))
+				Expect(sizes).To(Equal([]uint64{1, 3}))
+			})
+
+			It("should start at the given index when it is not the first one", func() {
+				indexes, sizes := sm.GetSizes(4, 10)
+				Expect(indexes).To(Equal([]uint64{4, 7}))
+				Expect(sizes).To(Equal([]uint64{3, 2}))
+			})
+
+			It("should start at the next existing index when the given one falls into a gap", func() {
+				indexes, sizes := sm.GetSizes(5, 10)
+				Expect(indexes).To(Equal([]uint64{7}))
+				Expect(sizes).To(Equal([]uint64{2}))
+			})
+
+			It("should return all entries when starting below the first index", func() {
+				indexes, sizes := sm.GetSizes(0, 10)
+				Expect(indexes).To(Equal([]uint64{3, 4, 7}))
+				Expect(sizes).To(Equal([]uint64{1, 3, 2}))
+			})
+
+			It("should return no entries when starting after the last index", func() {
+				indexes, sizes := sm.GetSizes(8, 10)
+				Expect(indexes).To(BeEmpty())
+				Expect(sizes).To(BeEmpty())
+			})
+
+			It("should return no entries when maxResults is zero", func() {
+				indexes, sizes := sm.GetSizes(3, 0)
+				Expect(indexes).To(BeEmpty())
+				Expect(sizes).To(BeEmpty())
+			})
+
+			It("should return no entries when maxResults is negative", func() {
+				indexes, sizes := sm.GetSizes(3, -1)
+				Expect(indexes).To(BeEmpty())
+				Expect(sizes).To(BeEmpty())
+			})
+		})
+	})
+
 	Describe("Truncate", func() {
 		var sm *statemate.StateMate[uint64]
 		BeforeEach(func() {

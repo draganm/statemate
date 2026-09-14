@@ -77,6 +77,17 @@ sm.GetLastIndex()  // index of the last entry
 
 `GetFirstIndex` and `GetLastIndex` return `math.MaxUint64` when the store is empty, so check `IsEmpty` first.
 
+### Entry sizes
+
+```go
+indexes, sizes := sm.GetSizes(100, 1000)
+for i, index := range indexes {
+    fmt.Printf("%d: %d bytes\n", index, sizes[i])
+}
+```
+
+`GetSizes` returns the indexes and the sizes in bytes of up to the given number of consecutive entries, starting with the first entry whose index is greater than or equal to the given index. The two slices always have the same length. Both are empty when no entry has such an index or when the maximum number of results is not positive. The sizes are read from the index file, so no entry data is touched.
+
 ### Storage statistics
 
 ```go
