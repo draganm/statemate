@@ -414,6 +414,59 @@ func (sm *StateMate[T]) GetFirstIndex() T {
 
 }
 
+// GetSizes returns the indexes and the sizes in bytes of up to maxResults
+// consecutive entries, starting with the first entry whose index is greater
+// than or equal to firstIndex.
+// The two slices always have the same length and the i-th size belongs to
+// the i-th index.
+// Both slices are empty when there is no such entry or when maxResults is
+// not positive.
+func (sm *StateMate[T]) GetSizes(firstIndex T, maxResults int) ([]T, []uint64) {
+	sm.mu.RLock()
+	defer sm.mu.RUnlock()
+
+	count := int(binary.BigEndian.Uint64(sm.readOnlyIndex[:8]))
+
+	searchSlice := sm.readOnlyIndex[8:]
+
+	indexOf := func(n int) T {
+		return T(binary.BigEndian.Uint64(searchSlice[n*16:]))
+	}
+
+	endOf := func(n int) uint64 {
+		return binary.BigEndian.Uint64(searchSlice[n*16+8:])
+	}
+
+	start := sort.Search(count, func(i int) bool {
+		return indexOf(i) >= firstIndex
+	})
+
+	n := count - start
+	if maxResults < n {
+		n = maxResults
+	}
+	if n <= 0 {
+		return []T{}, []uint64{}
+	}
+
+	indexes := make([]T, n)
+	sizes := make([]uint64, n)
+
+	previousEnd := uint64(0)
+	if start > 0 {
+		previousEnd = endOf(start - 1)
+	}
+
+	for i := 0; i < n; i++ {
+		end := endOf(start + i)
+		indexes[i] = indexOf(start + i)
+		sizes[i] = end - previousEnd
+		previousEnd = end
+	}
+
+	return indexes, sizes
+}
+
 func (sm *StateMate[T]) Count() uint64 {
 	sm.mu.RLock()
 	defer sm.mu.RUnlock()
